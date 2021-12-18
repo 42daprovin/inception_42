@@ -2,30 +2,70 @@ version: '3'
 
 services:
 
-  mysql:
+  db:
+    build:
+      context: ./requirements/mariadb/
     image: mariadb
-    volumes:
-      - /home/daprovin/data/mysql:/var/lib/mysql
+    container_name: db
+    restart: unless-stopped
+    env_file: .env
     environment:
-      MYSQL_ROOT_PASSWORD: mysql_root_pass
-      MYSQL_DATABASE: db_name
-      MYSQL_USER: daprovin
-      MYSQL_PASSWORD: daprovin
-    restart: always
+      - MYSQL_DATABASE=$MYSQL_DATABASE
+    volumes:
+      - dbdata:/var/lib/mysql
+    networks:
+      - app-network
 
   wordpress:
-    image: wordpress:php7.3-fpm-alpine
-    volumes:
-      - /data/html:/var/www/html
     depends_on:
-      - mysql
+      - db
+    build:
+      context: ./requirements/wordpress/
+    image: wordpress
+    container_name: wordpress
+    restart: unless-stopped
+    env_file: .env
     environment:
-      WORDPRESS_DB_HOST: mysql
-      MYSQL_ROOT_PASSWORD: mysql_root_pass
-      WORDPRESS_DB_NAME: db_name
-      WORDPRESS_DB_USER: daprovin
-      WORDPRESS_DB_PASSWORD: daprovin
-      WORDPRESS_TABLE_PREFIX: wp_
-    links:
-      - mysql
-    restart: always
+      - WP_URL=https://${DOMAIN_NAME}
+    volumes:
+      - wordpress:/var/www/wordpress
+    networks:
+      - app-network
+
+  webserver:
+    build:
+      context: ./requirements/nginx/
+    image: nginx
+    extra_hosts:
+      - "daprovin.42.fr:127.0.0.1"
+    container_name: webserver
+    restart: unless-stopped
+    ports:
+      - "443:443"
+    env_file: .env
+    environment:
+      - VIRTUAL_PORT=443
+      - VIRTUAL_HOST=${DOMAIN_NAME}
+    volumes:
+      - wordpress:/var/www/wordpress
+    networks:
+      - app-network
+
+volumes:
+    wordpress:
+      driver: local
+      driver_opts:
+        type: none
+        device: ${WP_HOST_VOLUME_PATH}
+        o: bind
+    dbdata:
+      driver: local
+      driver_opts:
+        type: none
+        device: ${MARIADB_HOST_VOLUME_PATH}
+        o: bind
+
+networks:
+    app-network:
+      external:
+        name: inception_network
