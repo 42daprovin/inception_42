@@ -33,11 +33,11 @@ services:
       - app-network
 
   webserver:
+    depends_on:
+      - wordpress
     build:
       context: ./requirements/nginx/
     image: nginx
-    extra_hosts:
-      - "daprovin.42.fr:127.0.0.1"
     container_name: webserver
     restart: unless-stopped
     ports:
